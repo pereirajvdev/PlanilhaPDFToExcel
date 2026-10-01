@@ -1,9 +1,11 @@
 from pathlib import Path
 import os
+import re
 import sys
 import fitz
 import pytesseract
 import pandas as pd
+
 
 from PIL import Image
 from io import BytesIO
@@ -50,14 +52,64 @@ def processar_pdf(caminho_pdf):
             linha = linha.strip()
 
             if linha:
+
+                numeros, letras = separar_numeros_letras(linha)
+
                 dados.append({
-                    "Página": numero_pagina,
-                    "Texto": linha
+                    "Números": numeros,
+                    "Letras": letras
                 })
 
     pdf.close()
 
     return dados
+
+
+def adicionar_espacos_caracteres_especiais(texto):
+
+    # Coloca espaço antes e depois de cada caractere especial
+    texto = re.sub(
+        r"([^A-Za-zÀ-ÿ0-9\s])",
+        r" \1 ",
+        texto
+    )
+
+    # Remove espaços duplicados
+    texto = re.sub(r"\s+", " ", texto)
+
+    return texto.strip()
+
+
+def remover_caracteres_especiais(texto):
+
+    return re.sub(
+        r"[^A-Za-zÀ-ÿ0-9\s]",
+        "",
+        texto
+    )
+
+
+def separar_numeros_letras(texto):
+
+    # 1. Adiciona espaços ao redor dos caracteres especiais
+    texto = adicionar_espacos_caracteres_especiais(texto)
+
+    # 2. Remove os caracteres especiais
+    texto = remover_caracteres_especiais(texto)
+
+    partes = texto.split()
+
+    numeros = []
+    letras = []
+
+    for parte in partes:
+
+        if any(caractere.isdigit() for caractere in parte):
+            numeros.append(parte)
+        else:
+            letras.append(parte)
+
+    return " ".join(numeros), " ".join(letras)
 
 
 def main():
@@ -94,13 +146,25 @@ def main():
 
     df = pd.DataFrame(todos_dados)
 
+    # Cria o Excel
     df.to_excel(
         caminho_excel,
         index=False
     )
 
+    # Abre o Excel para inserir uma linha vazia
+    # entre o cabeçalho e os dados
+    from openpyxl import load_workbook
+
+    wb = load_workbook(caminho_excel)
+    ws = wb.active
+
+    ws.insert_rows(2)
+
+    wb.save(caminho_excel)
+
     print()
-    print(f"Concluído!")
+    print("Concluído!")
     print(f"Excel: {caminho_excel}")
 
 
